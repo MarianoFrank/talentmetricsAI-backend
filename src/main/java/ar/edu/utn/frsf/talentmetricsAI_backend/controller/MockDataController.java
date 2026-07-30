@@ -17,12 +17,13 @@ import java.util.*;
 
 @RestController
 @RequestMapping("/api/mock")
-// ⚠️ ACORDATE DE BORRAR O COMENTAR ESTA CLASE ANTES DE LA DEFENSA DEL TP ⚠️
+// BORRAR O COMENTAR ESTA CLASE EN PRODUCCIÓN. SÓLO PARA TESTEO DE FLUJOS
+// COMPLETOS.
 public class MockDataController {
 
     private final QuestionnaireRepository questionnaireRepository;
     private final QuestionnaireService questionnaireService;
-    private final EvaluationRepository evaluationRepository; // 👈 AGREGAMOS ESTO
+    private final EvaluationRepository evaluationRepository;
 
     public MockDataController(QuestionnaireRepository questionnaireRepository,
             QuestionnaireService questionnaireService,
@@ -32,8 +33,11 @@ public class MockDataController {
         this.evaluationRepository = evaluationRepository;
     }
 
+    // Responde automaticamente al azar a todos los cuestionarios de una evaluación,
+    // simulando que algunos candidatos lo completan, otros lo dejan a medias y
+    // otros ni entran.
     @PostMapping("/answer-all/{evaluationId}")
-    @Transactional // 🛡️ EL ESCUDO ANTI-LAZY EXCEPTION
+    @Transactional
     public String answerAllRandomly(@PathVariable Long evaluationId) {
 
         // 1. Buscamos la evaluación para poder cerrarla al final
@@ -53,13 +57,17 @@ public class MockDataController {
 
                 int decision = random.nextInt(100);
 
-                // CASO 1: 20% ni entran
+                // CASO 1: 20% ni entran al cuestionario
                 if (decision < 20) {
                     countIgnorados++;
                     continue;
                 }
 
                 questionnaireService.startQuestionnaire(q.getId());
+                // IMPORTANTE: Debemos volver a buscar el cuestionario actualizado desde la
+                // base de datos, porque el método startQuestionnaire() es una transacción
+                // separada y el objeto q que tenemos en memoria no tiene los cambios
+                // persistidos.
                 Questionnaire updatedQ = questionnaireRepository.findById(q.getId()).orElseThrow();
                 List<Block> bloquesCopia = new ArrayList<>(updatedQ.getBlocks());
 
@@ -87,6 +95,7 @@ public class MockDataController {
                                 item.getQuestion().getType().name().toUpperCase().contains("MULTIPLE");
 
                         if (isMultiple) {
+                            // Seleccionamos al azar entre 1 y todas las opciones disponibles
                             int cantOpciones = random.nextInt(options.size()) + 1;
                             Collections.shuffle(options);
                             for (int j = 0; j < cantOpciones; j++) {
@@ -99,19 +108,18 @@ public class MockDataController {
 
                         answers.put(item.getId(), selectedIds);
                     }
+                    // Enviamos las respuestas del bloque al servicio para que las procese
                     questionnaireService.submitBlockAnswers(updatedQ.getId(), block.getBlockNumber(), answers);
                 }
             }
         }
         // --- FIN DE LA SIMULACIÓN DE CANDIDATOS ---
 
-        // ⚠️ ACÁ VIENE LA MAGIA DEL CIERRE Y EL CRON JOB ⚠️
-
-        // 2. Viajamos en el tiempo: vencemos la evaluación poniéndola en el pasado
+        // Vencemos la evaluación poniéndola en tiempo pasado
         evaluation.setCloseDate(LocalDateTime.now().minusDays(1));
         evaluationRepository.save(evaluation);
 
-        // 3. Forzamos la ejecución del Cron Job manualmente para que barra los vencidos
+        // Forzamos la ejecución del Cron Job manualmente para que barra los vencidos
         questionnaireService.finalizarCuestionariosVencidos();
 
         return String.format(

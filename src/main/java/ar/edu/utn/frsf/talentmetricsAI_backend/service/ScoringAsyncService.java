@@ -76,6 +76,7 @@ public class ScoringAsyncService {
                             if (!item.getOptionItems().isEmpty()) {
                                 valorPenalizacion = 10.0 / item.getOptionItems().size();
                             }
+
                             for (OptionItem optItem : item.getOptionItems()) {
                                 if (Boolean.TRUE.equals(optItem.getIsAnswered())) {
                                     double peso = optItem.getOption().getWeight();

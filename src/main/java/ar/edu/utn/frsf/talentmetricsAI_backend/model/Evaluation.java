@@ -29,8 +29,8 @@ public class Evaluation {
     private String code;
 
     @CreationTimestamp
-    @Column(name = "create_at", nullable = false)
-    private LocalDateTime createAt;
+    @Column(name = "created_at", nullable = false)
+    private LocalDateTime createdAt;
 
     @Column(name = "close_date", nullable = false)
     private LocalDateTime closeDate;
