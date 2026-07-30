@@ -3,6 +3,7 @@ package ar.edu.utn.frsf.talentmetricsAI_backend.repository;
 import ar.edu.utn.frsf.talentmetricsAI_backend.dto.question.QuestionSummaryResponse;
 import ar.edu.utn.frsf.talentmetricsAI_backend.model.Question;
 
+import java.util.List;
 import java.util.Optional;
 
 import org.springframework.data.domain.Page;
@@ -37,4 +38,8 @@ public interface QuestionRepository extends JpaRepository<Question, Long> {
     // otra para las opciones)
     @EntityGraph(attributePaths = { "options" })
     Optional<Question> findByIdAndDeletedAtIsNull(Long id);
+
+    // Traemos las preguntas del factor que no estén dadas de baja
+    @Query("SELECT q FROM Question q WHERE q.factor.id = :factorId AND q.deletedAt IS NULL")
+    List<Question> findActiveByFactorId(@Param("factorId") Long factorId);
 }

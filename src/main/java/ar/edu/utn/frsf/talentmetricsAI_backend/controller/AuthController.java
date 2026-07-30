@@ -1,5 +1,7 @@
 package ar.edu.utn.frsf.talentmetricsAI_backend.controller;
 
+import ar.edu.utn.frsf.talentmetricsAI_backend.dto.candidate.CandidateLoginRequest;
+import ar.edu.utn.frsf.talentmetricsAI_backend.dto.candidate.CandidateLoginResponse;
 import ar.edu.utn.frsf.talentmetricsAI_backend.model.Role;
 import ar.edu.utn.frsf.talentmetricsAI_backend.model.User;
 import ar.edu.utn.frsf.talentmetricsAI_backend.repository.UserRepository;
@@ -16,6 +18,7 @@ import org.springframework.security.authentication.UsernamePasswordAuthenticatio
 import org.springframework.security.core.Authentication;
 import org.springframework.web.bind.annotation.*;
 import ar.edu.utn.frsf.talentmetricsAI_backend.security.LdapService;
+import ar.edu.utn.frsf.talentmetricsAI_backend.security.SecurityService;
 
 @RestController
 @RequestMapping("/api/auth")
@@ -25,13 +28,17 @@ public class AuthController {
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final LdapService ldapService;
+    private final SecurityService securityService;
 
     public AuthController(AuthenticationManager authenticationManager, JwtService jwtService,
-            UserRepository userRepository, LdapService ldapService) {
+            UserRepository userRepository, LdapService ldapService,
+            SecurityService securityService) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
         this.userRepository = userRepository;
         this.ldapService = ldapService;
+        this.securityService = securityService;
+
     }
 
     // Sumamos el tipoAcceso que pide el diseño del TP
@@ -44,11 +51,11 @@ public class AuthController {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
                 loginRequest.username(), loginRequest.password()));
 
-        // JIT PROVISIONING: Buscamos en la BD local. Si no existe, lo creamos al vuelo.
+        // JIT PROVISIONING: Buscamos en la BD local. Si no existe, lo creamos
         User user = userRepository.findByUsername(loginRequest.username()).orElseGet(() -> {
             User newUser = new User();
             newUser.setUsername(loginRequest.username());
-            newUser.setRole(Role.CONSULTANT); // Rol por defecto en tu app
+            newUser.setRole(Role.CONSULTANT);
             return userRepository.save(newUser);
         });
 
@@ -104,20 +111,13 @@ public class AuthController {
     }
 
     @GetMapping("/me")
-    public ResponseEntity<?> getCurrentUser(Authentication authentication) {
-        String username = authentication.getName();
+    public ResponseEntity<Object> getCurrentUser(Authentication authentication) {
+        String principalName = authentication.getName();
         String role = authentication.getAuthorities().iterator().next().getAuthority();
 
-        Map<String, Object> userData = ldapService.getUserProfile(username);
+        Object profile = securityService.getUserProfile(principalName, role);
 
-        if (userData != null) {
-            userData.put("username", username);
-            userData.put("role", role.replace("ROLE_", ""));
-            return ResponseEntity.ok(userData);
-        } else {
-            return ResponseEntity.status(HttpStatus.NOT_FOUND).body(
-                    Map.of("error", "Perfil no encontrado o error en el directorio corporativo"));
-        }
+        return ResponseEntity.ok(profile);
     }
 
     private String getCookieValue(HttpServletRequest request, String cookieName) {
@@ -132,5 +132,26 @@ public class AuthController {
         }
 
         return null;
+    }
+
+    @PostMapping("/candidate/login")
+    public ResponseEntity<CandidateLoginResponse> loginCandidate(@RequestBody CandidateLoginRequest request) {
+        try {
+
+            Map<String, Object> response = securityService.authenticateCandidate(request);
+
+            Long questionnaireId = (Long) response.get("questionnaireId");
+            String token = (String) response.get("token");
+
+            CandidateLoginResponse candidateLoginResponse = new CandidateLoginResponse(questionnaireId);
+            // Reutilizamos tu JwtService para generar la cookie con el token del candidato
+            return ResponseEntity.ok()
+                    .header(HttpHeaders.SET_COOKIE, jwtService.generateJwtCookie(token).toString())
+                    .body(candidateLoginResponse);
+
+        } catch (RuntimeException e) {
+            // Mandamos un 401 Unauthorized si la clave está mal o el cuestionario venció
+            return ResponseEntity.status(HttpStatus.UNAUTHORIZED).body(null);
+        }
     }
 }

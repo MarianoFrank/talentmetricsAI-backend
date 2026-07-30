@@ -8,6 +8,7 @@ import org.springframework.data.jpa.repository.JpaRepository;
 import org.springframework.data.jpa.repository.Query;
 import org.springframework.data.repository.query.Param;
 
+import java.util.List;
 import java.util.Optional;
 
 public interface CandidateRepository extends JpaRepository<Candidate, Long> {
@@ -27,4 +28,8 @@ public interface CandidateRepository extends JpaRepository<Candidate, Long> {
             @Param("lastName") String lastName,
             @Param("candidateNumber") Long candidateNumber,
             Pageable pageable);
+
+    List<Candidate> findByCandidateNumberIn(List<Long> candidateNumbers);
+
+    Optional<Candidate> findByDocumentNumber(String documentNumber);
 }

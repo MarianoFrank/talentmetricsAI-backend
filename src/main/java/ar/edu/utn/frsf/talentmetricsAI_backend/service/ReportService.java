@@ -1,0 +1,110 @@
+package ar.edu.utn.frsf.talentmetricsAI_backend.service;
+
+import ar.edu.utn.frsf.talentmetricsAI_backend.dto.report.MeritOrderReportResponse;
+import ar.edu.utn.frsf.talentmetricsAI_backend.dto.report.ReportCandidateDto;
+import ar.edu.utn.frsf.talentmetricsAI_backend.model.*;
+import ar.edu.utn.frsf.talentmetricsAI_backend.model.enums.QuestionnaireState;
+import ar.edu.utn.frsf.talentmetricsAI_backend.model.questionnaire.Questionnaire;
+import ar.edu.utn.frsf.talentmetricsAI_backend.repository.PositionRepository;
+import ar.edu.utn.frsf.talentmetricsAI_backend.repository.QuestionnaireRepository;
+import org.springframework.security.core.context.SecurityContextHolder;
+import org.springframework.stereotype.Service;
+import org.springframework.transaction.annotation.Transactional;
+
+import java.time.LocalDateTime;
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
+
+@Service
+public class ReportService {
+
+    private final QuestionnaireRepository questionnaireRepository;
+    private final PositionRepository positionRepository;
+
+    public ReportService(QuestionnaireRepository questionnaireRepository, PositionRepository positionRepository) {
+        this.questionnaireRepository = questionnaireRepository;
+        this.positionRepository = positionRepository;
+    }
+
+    @Transactional(readOnly = true)
+    public MeritOrderReportResponse generateMeritOrder(Long positionId, Long evaluationId) {
+        Position position = positionRepository.findById(positionId)
+                .orElseThrow(() -> new IllegalArgumentException("Puesto no encontrado"));
+
+        List<Questionnaire> questionnaires;
+
+        // Si mandan evaluationId, filtramos por esa. Si es null (TODAS), traemos las
+        // del puesto.
+        if (evaluationId != null) {
+            questionnaires = questionnaireRepository.findByEvaluationId(evaluationId);
+        } else {
+            questionnaires = questionnaireRepository.findByEvaluationPositionId(positionId);
+        }
+
+        List<ReportCandidateDto> approved = new ArrayList<>();
+        List<ReportCandidateDto> rejected = new ArrayList<>();
+
+        for (Questionnaire q : questionnaires) {
+            Candidate c = q.getCandidate();
+
+            // Mapeamos los datos adicionales según si completó o no
+            LocalDateTime finalDate = (q.getState() == QuestionnaireState.COMPLETED) ? q.getEndedAt()
+                    : q.getLastAccess();
+
+            ReportCandidateDto candidateDto = new ReportCandidateDto(
+                    c.getFirstName(),
+                    c.getLastName(),
+                    c.getDocumentType().name(),
+                    c.getDocumentNumber(),
+                    String.valueOf(c.getCandidateNumber()),
+                    q.getState().name(),
+                    (q.getState() == QuestionnaireState.COMPLETED) ? q.getTotalScore() : null,
+                    q.getStartedAt(),
+                    finalDate,
+                    q.getAccessCount());
+
+            if (q.getState() == QuestionnaireState.COMPLETED && meetsMinimumRequirements(q, position)) {
+                approved.add(candidateDto);
+            } else {
+                rejected.add(candidateDto);
+            }
+        }
+
+        approved.sort(Comparator.comparing(dto -> dto.getScore(), Comparator.reverseOrder()));
+        rejected.sort(Comparator.comparing(dto -> dto.getState()));
+
+        // Sacamos el nombre del consultor que lo está emitiendo
+        String consultor = SecurityContextHolder.getContext().getAuthentication().getName();
+
+        return new MeritOrderReportResponse(
+                position.getCompany().getName(),
+                position.getName(),
+                consultor,
+                LocalDateTime.now(),
+                approved,
+                rejected);
+    }
+
+    // Valida si el candidato alcanzó las ponderaciones mínimas en TODAS las
+    // competencias
+    private boolean meetsMinimumRequirements(Questionnaire q, Position p) {
+        for (PositionCompetency pc : p.getCompetencies()) {
+            Long compId = pc.getCompetency().getId();
+
+            double minRequired = pc.getWeightingRequired();
+
+            // Buscamos cuánto sacó el candidato en esta competencia específica
+            double candidateScore = q.getCompetencyScores().stream()
+                    .filter(cs -> cs.getCompetency().getId().equals(compId))
+                    .map(cs -> cs.getScore())
+                    .findFirst()
+                    .orElse(0.0);
+
+            if (candidateScore < minRequired) {
+                return false; // Rebotó en al menos una, afuera del orden de mérito
+            }
+        }
+        return true;
+    }
+}

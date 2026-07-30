@@ -1,20 +1,15 @@
 package ar.edu.utn.frsf.talentmetricsAI_backend.model;
 
 import java.time.LocalDateTime;
+import java.util.List;
 
 import ar.edu.utn.frsf.talentmetricsAI_backend.model.enums.CompetencyType;
 import jakarta.persistence.*;
-import lombok.AllArgsConstructor;
-import lombok.Getter;
-import lombok.NoArgsConstructor;
-import lombok.Setter;
+import lombok.Data;
 
 @Entity
+@Data
 @Table(name = "competencies")
-@Getter
-@Setter
-@NoArgsConstructor
-@AllArgsConstructor
 public class Competency {
 
     @Id
@@ -36,4 +31,7 @@ public class Competency {
 
     @Column(name = "deleted_at")
     private LocalDateTime deletedAt;
+
+    @OneToMany(mappedBy = "competency", cascade = CascadeType.ALL, orphanRemoval = true)
+    private List<Factor> factors = new java.util.ArrayList<>();
 }

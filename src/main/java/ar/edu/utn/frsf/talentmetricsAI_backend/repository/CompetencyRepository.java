@@ -16,4 +16,13 @@ public interface CompetencyRepository extends JpaRepository<Competency, Long> {
                 ORDER BY c.name
             """)
     List<SelectItemResponse> findAllForSelect();
+
+    // Trae SOLO los IDs de las competencias que tienen al menos un factor con 2 o
+    // más preguntas
+    @Query(value = "SELECT f.competency_id FROM questions q " +
+            "INNER JOIN factors f ON q.factor_id = f.id " +
+            "WHERE f.deleted_at IS NULL AND q.deleted_at IS NULL " +
+            "GROUP BY f.competency_id, f.id " +
+            "HAVING COUNT(q.id) >= 2", nativeQuery = true)
+    List<Long> findValidCompetencyIds();
 }
