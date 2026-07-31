@@ -26,7 +26,7 @@ public class EvaluationService {
     private final CompetencyRepository competencyRepository;
     private final EvaluationRepository evaluationRepository;
     private final QuestionnaireRepository questionnaireRepository;
-    private final UserRepository userRepository;
+    private final ConsultantRepository consultantRepository;
 
     // Constantes para la clave aleatoria
     private static final String CHARACTERS = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
@@ -35,13 +35,13 @@ public class EvaluationService {
 
     public EvaluationService(PositionRepository positionRepository, CandidateRepository candidateRepository,
             CompetencyRepository competencyRepository, EvaluationRepository evaluationRepository,
-            QuestionnaireRepository questionnaireRepository, UserRepository userRepository) {
+            QuestionnaireRepository questionnaireRepository, ConsultantRepository consultantRepository) {
         this.positionRepository = positionRepository;
         this.candidateRepository = candidateRepository;
         this.competencyRepository = competencyRepository;
         this.evaluationRepository = evaluationRepository;
         this.questionnaireRepository = questionnaireRepository;
-        this.userRepository = userRepository;
+        this.consultantRepository = consultantRepository;
     }
 
     @Transactional
@@ -64,10 +64,10 @@ public class EvaluationService {
         evaluation.setPosition(position);
 
         String username = SecurityContextHolder.getContext().getAuthentication().getName();
-        User consultor = userRepository.findByUsername(username)
+        Consultant consultor = consultantRepository.findByUsername(username)
                 .orElseThrow(() -> new RuntimeException("Usuario autenticado no encontrado en la base de datos"));
 
-        evaluation.setUser(consultor);
+        evaluation.setConsultant(consultor);
         evaluation.setCode("EVAL-" + UUID.randomUUID().toString().substring(0, 8).toUpperCase());
         // Le sumamos 7 días pero clavamos la hora a las 23:59:59 para sincronizar con
         // el scheduler

@@ -18,8 +18,8 @@ public class Evaluation {
 
     // Supongo que ya tenés la clase User creada por el AuthController
     @ManyToOne(fetch = FetchType.LAZY)
-    @JoinColumn(name = "user_id", nullable = false)
-    private User user;
+    @JoinColumn(name = "consultant_id", nullable = false)
+    private Consultant consultant;
 
     @ManyToOne(fetch = FetchType.LAZY)
     @JoinColumn(name = "position_id", nullable = false)

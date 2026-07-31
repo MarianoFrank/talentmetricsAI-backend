@@ -2,9 +2,8 @@ package ar.edu.utn.frsf.talentmetricsAI_backend.controller;
 
 import ar.edu.utn.frsf.talentmetricsAI_backend.dto.candidate.CandidateLoginRequest;
 import ar.edu.utn.frsf.talentmetricsAI_backend.dto.candidate.CandidateLoginResponse;
-import ar.edu.utn.frsf.talentmetricsAI_backend.model.Role;
-import ar.edu.utn.frsf.talentmetricsAI_backend.model.User;
-import ar.edu.utn.frsf.talentmetricsAI_backend.repository.UserRepository;
+import ar.edu.utn.frsf.talentmetricsAI_backend.model.Consultant;
+import ar.edu.utn.frsf.talentmetricsAI_backend.repository.ConsultantRepository;
 import ar.edu.utn.frsf.talentmetricsAI_backend.security.JwtService;
 import jakarta.servlet.http.Cookie;
 import jakarta.servlet.http.HttpServletRequest;
@@ -24,21 +23,20 @@ import ar.edu.utn.frsf.talentmetricsAI_backend.security.SecurityService;
 @RequestMapping("/api/auth")
 public class AuthController {
 
-    private final UserRepository userRepository;
     private final AuthenticationManager authenticationManager;
     private final JwtService jwtService;
     private final LdapService ldapService;
     private final SecurityService securityService;
+    private final ConsultantRepository consultantRepository;
 
     public AuthController(AuthenticationManager authenticationManager, JwtService jwtService,
-            UserRepository userRepository, LdapService ldapService,
+            ConsultantRepository consultantRepository, LdapService ldapService,
             SecurityService securityService) {
         this.authenticationManager = authenticationManager;
         this.jwtService = jwtService;
-        this.userRepository = userRepository;
         this.ldapService = ldapService;
         this.securityService = securityService;
-
+        this.consultantRepository = consultantRepository;
     }
 
     // Sumamos el tipoAcceso que pide el diseño del TP
@@ -51,17 +49,17 @@ public class AuthController {
         authenticationManager.authenticate(new UsernamePasswordAuthenticationToken(
                 loginRequest.username(), loginRequest.password()));
 
-        // JIT PROVISIONING: Buscamos en la BD local. Si no existe, lo creamos
-        User user = userRepository.findByUsername(loginRequest.username()).orElseGet(() -> {
-            User newUser = new User();
-            newUser.setUsername(loginRequest.username());
-            newUser.setRole(Role.CONSULTANT);
-            return userRepository.save(newUser);
+        // JIT PROVISIONING: Buscamos al consultor en la BD local. Si no existe, lo
+        // creamos
+        Consultant consultant = consultantRepository.findByUsername(loginRequest.username()).orElseGet(() -> {
+            Consultant newConsultant = new Consultant();
+            newConsultant.setUsername(loginRequest.username());
+            // Ya no seteamos el rol acá porque está implícito en la entidad Consultant
+            return consultantRepository.save(newConsultant);
         });
 
-        // Generamos access y refresh token
-        String accessToken = jwtService.generateToken(user.getUsername(), user.getRole().name());
-        String refreshToken = jwtService.generateRefreshToken(user.getUsername(), user.getRole().name());
+        String accessToken = jwtService.generateToken(consultant.getUsername(), "CONSULTANT");
+        String refreshToken = jwtService.generateRefreshToken(consultant.getUsername(), "CONSULTANT");
 
         return ResponseEntity.ok()
                 .header(HttpHeaders.SET_COOKIE,
@@ -69,7 +67,7 @@ public class AuthController {
                 .header(HttpHeaders.SET_COOKIE,
                         jwtService.generateRefreshJwtCookie(refreshToken).toString())
                 .body(Map.of("message", "Consultor autenticado correctamente", "user",
-                        Map.of("username", user.getUsername(), "role", user.getRole().name())));
+                        Map.of("username", consultant.getUsername(), "role", "CONSULTANT")));
     }
 
     @PostMapping("/refresh")
