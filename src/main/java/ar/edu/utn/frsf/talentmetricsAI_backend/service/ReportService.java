@@ -28,12 +28,14 @@ public class ReportService {
     private final QuestionnaireRepository questionnaireRepository;
     private final PositionRepository positionRepository;
     private final EvaluationRepository evaluationRepository;
+    private final ScoringAsyncService scoringService;
 
     public ReportService(QuestionnaireRepository questionnaireRepository, PositionRepository positionRepository,
-            EvaluationRepository evaluationRepository) {
+            EvaluationRepository evaluationRepository, ScoringAsyncService scoringService) {
         this.questionnaireRepository = questionnaireRepository;
         this.positionRepository = positionRepository;
         this.evaluationRepository = evaluationRepository;
+        this.scoringService = scoringService;
     }
 
     @Transactional(readOnly = true)
@@ -61,6 +63,14 @@ public class ReportService {
         List<ReportCandidateDto> rejected = new ArrayList<>();
 
         for (Questionnaire q : questionnaires) {
+            // Si está completado pero el servidor se cayó antes de
+            // calcular el puntaje
+            if (q.getState() == QuestionnaireState.COMPLETED && q.getTotalScore() == null) {
+                // Lo calculamos a la fuerza en este momento
+                Double puntajeRecuperado = scoringService.calcularPuntajeSincrono(q.getId());
+                q.setTotalScore(puntajeRecuperado);
+            }
+
             Candidate c = q.getCandidate();
 
             // Mapeamos los datos adicionales según si completó o no

@@ -21,7 +21,9 @@ public interface PositionRepository extends JpaRepository<Position, Long> {
             "WHERE p.deletedAt IS NULL")
     List<Position> findAllActivePositions();
 
+    // Traemos los puestos solo si tiene evaluaciones asociadas
     @Query("SELECT p FROM Position p WHERE " +
+            "EXISTS (SELECT 1 FROM Evaluation e WHERE e.position.id = p.id) AND " +
             "(:companyId IS NULL OR p.company.id = :companyId) AND " +
             "(:positionName IS NULL OR LOWER(p.name) LIKE LOWER(CONCAT('%', CAST(:positionName AS string), '%'))) AND "
             +

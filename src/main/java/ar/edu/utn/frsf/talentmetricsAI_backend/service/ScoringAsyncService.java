@@ -28,9 +28,12 @@ public class ScoringAsyncService {
     // exitoso en la base de datos.
     @TransactionalEventListener(phase = TransactionPhase.AFTER_COMMIT)
     @Async
-    public void calcularYGuardarPuntajesAsync(QuestionnaireCompletedEvent event) {
+    public void calcularPuntajesAsync(QuestionnaireCompletedEvent event) {
+        calcularPuntajeSincrono(event.questionnaireId());
+    }
 
-        Long questionnaireId = event.questionnaireId();
+    @Transactional
+    public Double calcularPuntajeSincrono(Long questionnaireId) {
 
         Questionnaire questionnaire = questionnaireRepository.findById(questionnaireId)
                 .orElseThrow(() -> new IllegalArgumentException("Cuestionario no encontrado para cálculo"));
@@ -138,5 +141,7 @@ public class ScoringAsyncService {
         questionnaire.setTotalScore(puntajeTotalCuestionario);
 
         questionnaireRepository.save(questionnaire);
+
+        return puntajeTotalCuestionario;
     }
 }

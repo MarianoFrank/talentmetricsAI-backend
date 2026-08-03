@@ -37,17 +37,20 @@ public class SecurityConfig {
                 .csrf(csrf -> csrf.disable())
                 .sessionManagement(session -> session.sessionCreationPolicy(SessionCreationPolicy.STATELESS))
                 .authorizeHttpRequests(auth -> auth
-                        .requestMatchers("/api/auth/**").permitAll()
+                        .requestMatchers(
+                                "/api/auth/**",
+                                "/api/mock/**")
+                        .permitAll()
 
                         .requestMatchers(
                                 "/api/questions/**",
                                 "/api/evaluations/**",
                                 "/api/ai/**",
                                 "/api/candidates/**")
-                        .hasAnyRole("ADMIN", "CONSULTANT")
+                        .hasAnyRole("CONSULTANT")
 
                         .requestMatchers("/api/questionnaires/**")
-                        .hasAnyRole("ADMIN", "CANDIDATE")
+                        .hasAnyRole("CANDIDATE")
 
                         .anyRequest().authenticated());
 
